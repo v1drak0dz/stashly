@@ -8,7 +8,7 @@ all: build
 
 build-linux:
 	@echo "Building for linux..."
-	@GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(APP_NAME).exe $(CMD_DIR)
+	@GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(APP_NAME) $(CMD_DIR)
 
 build-windows:
 	@echo "Building for windows..."
