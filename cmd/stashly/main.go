@@ -1,0 +1,143 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"regexp"
+	"strings"
+
+	"stashly/internal/gitx"
+	"stashly/internal/ui"
+
+	git "github.com/go-git/go-git/v5"
+)
+
+func main() {
+	include := flag.String("include", "", "Filter files to include (comma separated)")
+	includer := flag.String("includer", "", "regex pattern to include files (comma separated)")
+	exclude := flag.String("exclude", "", "Filter files to exclude (comma separated)")
+	excluder := flag.String("excluder", "", "regex pattern to exclude files (comma separated)")
+	flag.Parse()
+
+	// abre repo
+	repo, err := gitx.OpenRepo(".")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// autenticação
+	auth, err := gitx.GetAuth()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// status
+	status, err := gitx.GetStatus(repo)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(status) == 0 {
+		fmt.Println("Nothing to review")
+		return
+	}
+
+	var includeRegex, excludeRegex *regexp.Regexp
+
+	if *includer != "" {
+		includeRegex, err = regexp.Compile(*includer)
+		if err != nil {
+			log.Fatal("Invalid includer regex:", err)
+		}
+	}
+
+	if *excluder != "" {
+		excludeRegex, err = regexp.Compile(*excluder)
+		if err != nil {
+			log.Fatal("Invalid excluder regex:", err)
+		}
+	}
+
+	for file := range status {
+		if passesFilter(file, *include, *exclude, includeRegex, excludeRegex) {
+			fmt.Println("  ", file)
+		}
+	}
+
+	// montar lista formatada
+	files := []string{}
+	fileMap := map[string]string{}
+	for f, s := range status {
+		display := ui.FormatStatus(f, s.Worktree)
+		files = append(files, display)
+		fileMap[display] = f
+	}
+
+	// selecionar arquivos
+	selected, _ := ui.AskMultiSelect("Select files to stage:", files)
+
+	var realFiles []string
+	for _, f := range selected {
+		realFiles = append(realFiles, fileMap[f])
+	}
+
+	if err := gitx.StageFiles(repo, realFiles); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Staged files:")
+	for _, f := range selected {
+		fmt.Println("  ", f)
+	}
+
+	// commit
+	msg, _ := ui.AskInput("Commit message:")
+	if msg == "" {
+		fmt.Println("Commit message cannot be empty")
+		return
+	}
+	hash, err := gitx.Commit(repo, msg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Commit made successfully:", hash)
+
+	// push opcional
+	push, _ := ui.AskConfirm("Do you want to push?")
+	if push {
+		err = gitx.Push(repo, auth)
+		if err != nil {
+			if err == git.NoErrAlreadyUpToDate {
+				fmt.Println("Already up-to-date")
+			} else {
+				log.Fatal(err)
+			}
+		} else {
+			fmt.Println("Pushed successfully")
+		}
+	} else {
+		fmt.Println("Skipped pushing")
+	}
+}
+
+func passesFilter(file, includeSub, excludeSub string, includeRegex, excludeRegex *regexp.Regexp) bool {
+	// include substring
+	if includeSub != "" && !strings.Contains(file, includeSub) {
+		return false
+	}
+	// exclude substring
+	if excludeSub != "" && strings.Contains(file, excludeSub) {
+		return false
+	}
+	// include regex
+	if includeRegex != nil && !includeRegex.MatchString(file) {
+		return false
+	}
+	// exclude regex
+	if excludeRegex != nil && excludeRegex.MatchString(file) {
+		return false
+	}
+	return true
+}
+
