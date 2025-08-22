@@ -2,22 +2,22 @@ package ui
 
 import "github.com/AlecAivazis/survey/v2"
 
-func AskSelect(msg string, options []string) (string, error) {
+func AskSelect(msg string, options []string, lines int) (string, error) {
 	var selected string
 	err := survey.AskOne(&survey.Select{
 		Message: msg,
 		Options: options,
-		PageSize: 20,
+		PageSize: lines,
 	}, &selected)
 	return selected, err
 }
 
-func AskMultiSelect(msg string, options []string) ([]string, error) {
+func AskMultiSelect(msg string, options []string, lines int) ([]string, error) {
 	var selected []string
 	err := survey.AskOne(&survey.MultiSelect{
 		Message: msg,
 		Options: options,
-		PageSize: 20,
+		PageSize: lines,
 	}, &selected)
 	return selected, err
 }
