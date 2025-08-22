@@ -8,7 +8,9 @@ import (
 )
 
 func OpenRepo(path string) (*git.Repository, error) {
-	return git.PlainOpen(path)
+	return git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
+		DetectDotGit: true,
+	})
 }
 
 func GetStatus(repo *git.Repository) (git.Status, error) {
