@@ -134,7 +134,25 @@ func getGitAuth() (gitssh.AuthMethod, error) {
 
 	// Fallback para chave privada
 	home, _ := os.UserHomeDir()
-	keyPath := filepath.Join(home, ".ssh", "id_ed25519_vrs10")
+	keyFolder := filepath.Join(home, ".ssh")
+	files, err := os.ReadDir(keyFolder)
+	if err != nil {
+		return nil, err
+	}
+
+	authfiles := make([]string, len(files))
+	for i, entry := range files {
+		authfiles[i] = entry.Name()
+	}
+
+	var selected string
+	prompt := &survey.Select{
+		Message: "Choose a auth file:",
+		Options: authfiles,
+	}
+	survey.AskOne(prompt, &selected)
+
+	keyPath := filepath.Join(home, ".ssh", selected)
 	authKey, err := gitssh.NewPublicKeysFromFile("git", keyPath, "")
 	if err != nil {
 		return nil, err
