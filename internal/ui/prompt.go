@@ -7,6 +7,7 @@ func AskSelect(msg string, options []string) (string, error) {
 	err := survey.AskOne(&survey.Select{
 		Message: msg,
 		Options: options,
+		PageSize: 20,
 	}, &selected)
 	return selected, err
 }
@@ -16,6 +17,7 @@ func AskMultiSelect(msg string, options []string) ([]string, error) {
 	err := survey.AskOne(&survey.MultiSelect{
 		Message: msg,
 		Options: options,
+		PageSize: 20,
 	}, &selected)
 	return selected, err
 }
