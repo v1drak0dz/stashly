@@ -17,7 +17,7 @@ import (
 	git "github.com/go-git/go-git/v5"
 )
 
-const version = "1.0.1"
+const version = "1.2.1"
 const repoOwner = "ryuvi"
 const repoName = "stashly"
 
