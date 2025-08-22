@@ -99,23 +99,28 @@ func main() {
 		}
 	}
 
-	for file := range status {
-		if passesFilter(file, *include, *exclude, includeRegex, excludeRegex) {
-			fmt.Println("  ", file)
-		}
-	}
-
 	// montar lista formatada
 	files := []string{}
 	fileMap := map[string]string{}
 	for f, s := range status {
-		display := ui.FormatStatus(f, s.Worktree)
-		files = append(files, display)
-		fileMap[display] = f
+		if passesFilter(f, *include, *exclude, includeRegex, excludeRegex) {
+			display := ui.FormatStatus(f, s.Worktree)
+			files = append(files, display)
+			fileMap[display] = f
+		}
+	}
+
+	if len(files) == 0 {
+		fmt.Println("Nothing to review")
+		return
 	}
 
 	// selecionar arquivos
-	selected, _ := ui.AskMultiSelect("Select files to stage:", files)
+	selected, err := ui.AskMultiSelect("Select files to stage:", files)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
 
 	var realFiles []string
 	for _, f := range selected {
@@ -132,11 +137,17 @@ func main() {
 	}
 
 	// commit
-	msg, _ := ui.AskInput("Commit message:")
+	msg, err := ui.AskInput("Commit message:")
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+
 	if msg == "" {
 		fmt.Println("Commit message cannot be empty")
 		return
 	}
+
 	hash, err := gitx.Commit(repo, msg)
 	if err != nil {
 		log.Fatal(err)
@@ -144,7 +155,12 @@ func main() {
 	fmt.Println("Commit made successfully:", hash)
 
 	// push opcional
-	push, _ := ui.AskConfirm("Do you want to push?")
+	push, err := ui.AskConfirm("Do you want to push?")
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+
 	if push {
 		err = gitx.Push(repo, auth)
 		if err != nil {
