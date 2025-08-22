@@ -7,11 +7,49 @@ import (
 	"regexp"
 	"strings"
 
+	"encoding/json"
+	"net/http"
+	"time"
+
 	"stashly/internal/gitx"
 	"stashly/internal/ui"
 
 	git "github.com/go-git/go-git/v5"
 )
+
+const version = "1.0.1"
+const repoOwner = "ryuvi"
+const repoName = "stashly"
+
+type Release struct {
+	TagName string `json:"tag_name"`
+	HTMLURL string `json:"html_url"`
+}
+
+func checkLatestRelease() {
+	client := http.Client{Timeout: 3 * time.Second}
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", repoOwner, repoName)
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return
+	}
+
+	var release Release
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return
+	}
+
+	if release.TagName != "v"+version {
+		fmt.Printf("A new version is available: %s (you are on v%s)\n", release.HTMLURL, version)
+		fmt.Printf("Download: %s\n\n", release.HTMLURL)
+	}
+}
 
 func main() {
 	include := flag.String("include", "", "Filter files to include (comma separated)")
@@ -19,6 +57,8 @@ func main() {
 	exclude := flag.String("exclude", "", "Filter files to exclude (comma separated)")
 	excluder := flag.String("excluder", "", "regex pattern to exclude files (comma separated)")
 	flag.Parse()
+
+	checkLatestRelease()
 
 	// abre repo
 	repo, err := gitx.OpenRepo(".")
