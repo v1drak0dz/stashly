@@ -2,6 +2,8 @@ package gitx
 
 import (
 	"fmt"
+	"os/exec"
+	"strings"
 
 	git "github.com/go-git/go-git/v5"
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
@@ -13,13 +15,54 @@ func OpenRepo(path string) (*git.Repository, error) {
 	})
 }
 
+
 func GetStatus(repo *git.Repository) (git.Status, error) {
-	wt, err := repo.Worktree()
-	if err != nil {
-		return nil, err
-	}
-	return wt.Status()
+    out, err := exec.Command("git", "status", "--porcelain").Output()
+    if err != nil {
+        return nil, err
+    }
+
+    lines := strings.Split(string(out), "\n")
+    statusMap := make(git.Status)
+
+    for _, l := range lines {
+        if len(l) < 3 { // linhas curtas não valem
+            continue
+        }
+        x := l[0] // staging
+        y := l[1] // worktree
+        file := strings.TrimSpace(l[3:])
+
+        fs := &git.FileStatus{}
+
+        // staging
+        switch x {
+        case 'M':
+            fs.Staging = git.Modified
+        case 'A':
+            fs.Staging = git.Added
+        case 'D':
+            fs.Staging = git.Deleted
+        }
+
+        // worktree
+        switch y {
+        case 'M':
+            fs.Worktree = git.Modified
+        case 'A':
+            fs.Worktree = git.Added
+        case 'D':
+            fs.Worktree = git.Deleted
+        case '?':
+            fs.Worktree = git.Untracked
+        }
+
+        statusMap[file] = fs
+    }
+
+    return statusMap, nil
 }
+
 
 func StageFiles(repo *git.Repository, files []string) error {
 	wt, err := repo.Worktree()

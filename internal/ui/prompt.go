@@ -3,9 +3,11 @@ package ui
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -78,82 +80,158 @@ func AskSelect(msg string, options []string) (string, error) {
 }
 
 // ====================
-// === MULTI SELECT ===
+// === MULTI SELECT COM DIFF + SCROLL ===
 type multiSelectModel struct {
 	options  []string
 	cursor   int
+	offset   int // scroll da lista da esquerda
 	selected map[int]bool
 	status   map[string]string // "new", "modified", "deleted"
-	done     bool
+
+	viewport viewport.Model // painel direito (diff)
+	diff     string
+
+	height int
+	width  int
+
+	done bool
 }
 
-func (m *multiSelectModel) Init() tea.Cmd { return nil }
+func (m *multiSelectModel) Init() tea.Cmd {
+	// define tamanho do viewport do diff
+	m.height = 20
+	m.width = 80
+	m.viewport = viewport.New(m.width, m.height)
+	return m.loadDiff()
+}
+
+func (m *multiSelectModel) loadDiff() tea.Cmd {
+	if len(m.options) == 0 {
+		m.diff = ""
+		m.viewport.SetContent("")
+		return nil
+	}
+	file := m.options[m.cursor]
+
+	// executa git diff --color
+	out, _ := exec.Command("git", "diff", "--color=always", file).CombinedOutput()
+	m.diff = string(out)
+	if m.diff == "" {
+		m.diff = "(sem alterações para mostrar)"
+	}
+	m.viewport.SetContent(m.diff)
+	return nil
+}
 
 func (m *multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		// pega largura e altura do terminal
+		m.width = msg.Width - 5   // reserva espaço para borda
+		m.height = msg.Height - 2 // reserva header/margem
+		m.viewport.Width = m.width
+		m.viewport.Height = m.height
+		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			os.Exit(0)
+
+		// navegação na lista de arquivos
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
+				if m.cursor < m.offset {
+					m.offset-- // scroll pra cima
+				}
+				return m, m.loadDiff()
 			}
 		case "down", "j":
 			if m.cursor < len(m.options)-1 {
 				m.cursor++
+				if m.cursor >= m.offset+m.height-2 { // "-2" p/ header
+					m.offset++ // scroll pra baixo
+				}
+				return m, m.loadDiff()
 			}
+
+		// seleção
 		case " ":
 			m.selected[m.cursor] = !m.selected[m.cursor]
+
+		// confirma
 		case "enter":
 			m.done = true
 			return m, tea.Quit
+
+		// scroll no diff
+		case "pgdown", "ctrl+d":
+			m.viewport.ScrollDown(5)
+		case "pgup", "ctrl+u":
+			m.viewport.ScrollUp(5)
 		}
 	}
-	return m, nil
+
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
 }
 
 func (m *multiSelectModel) View() string {
-	s := "Use ↑ ↓ to move, space to select, enter to confirm:\n"
-	for i, choice := range m.options {
+	// painel esquerdo: lista de arquivos com scroll
+	left := "Use ↑ ↓ para navegar, espaço para marcar, enter para confirmar:\n\n"
+
+	end := m.offset + m.height - 2 // limite visível (reserva header + margem)
+	if end > len(m.options) {
+		end = len(m.options)
+	}
+
+	for i := m.offset; i < end; i++ {
+		choice := m.options[i]
+
+		cursor := " "
+		if i == m.cursor {
+			cursor = ">"
+		}
 		check := " "
-		if m.selected[i] || m.cursor == i {
+		if m.selected[i] {
 			check = "x"
 		}
 
-		// pinta conforme o status
-		display := choice
+		display := fmt.Sprintf("[%s] %s", check, choice)
 		switch m.status[choice] {
 		case "new":
-			if m.cursor == i {
-				display = cian.Bold(true).Render("[" + check + "] " + choice + " (new)")
-			} else {
-				display = "[" + check + "] " + choice + green.Render(" (new)")
-			}
+			display = green.Render(display + " (new)")
 		case "modified":
-			if m.cursor == i {
-				display = cian.Bold(true).Render("[" + check + "] " + choice + " (modified)")
-			} else {
-				display = "[" + check + "] " + choice + yellow.Render(" (modified)")
-			}
+			display = yellow.Render(display + " (modified)")
 		case "deleted":
-			if m.cursor == i {
-				display = cian.Bold(true).Render("[" + check + "] " + choice + " (deleted)")
-			} else {
-				display = "[" + check + "] " + choice + red.Render(" (deleted)")
-			}
+			display = red.Render(display + " (deleted)")
 		}
 
-		// s += fmt.Sprintf("%s [%s] %s\n", cursor, check, display)
-		s += fmt.Sprintf("%s\n", display)
+		if i == m.cursor {
+			display = cian.Bold(true).Render(cursor + " " + display)
+		} else {
+			display = cursor + " " + display
+		}
+		left += display + "\n"
 	}
-	return s
+
+	// painel direito: diff com scroll
+	right := m.viewport.View()
+
+	// junta em colunas lado a lado
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		lipgloss.NewStyle().Width(45).Height(m.height).Border(lipgloss.NormalBorder()).Render(left),
+		lipgloss.NewStyle().Width(m.width - 45).Height(m.height).Border(lipgloss.NormalBorder()).Render(right),
+	)
 }
 
 func AskMultiSelectColored(msg string, options []string, status map[string]string) ([]string, error) {
 	m := &multiSelectModel{
 		options:  options,
 		cursor:   0,
+		offset:   0,
 		selected: make(map[int]bool),
 		status:   status,
 	}
