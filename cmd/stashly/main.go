@@ -18,7 +18,7 @@ import (
 )
 
 const version = "1.2.1"
-const repoOwner = "ryuvi"
+const repoOwner = "v1drak0dz"
 const repoName = "stashly"
 
 type Release struct {
