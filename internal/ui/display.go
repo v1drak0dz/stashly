@@ -1,18 +1,17 @@
 package ui
 
 import (
-	"github.com/fatih/color"
 	git "github.com/go-git/go-git/v5"
 )
 
 func FormatStatus(filename string, status git.StatusCode) string {
 	switch status {
 	case git.Untracked:
-		return color.GreenString(filename + " (new)")
+		return "new"
 	case git.Modified:
-		return color.YellowString(filename + " (modified)")
+		return "modified"
 	case git.Deleted:
-		return color.RedString(filename + " (deleted)")
+		return "deleted"
 	default:
 		return filename
 	}

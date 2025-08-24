@@ -17,7 +17,7 @@ import (
 	git "github.com/go-git/go-git/v5"
 )
 
-const version = "1.2.1"
+const version = "1.3.0"
 const repoOwner = "ryuvi"
 const repoName = "stashly"
 
@@ -106,8 +106,8 @@ func main() {
 	for f, s := range status {
 		if passesFilter(f, *include, *exclude, includeRegex, excludeRegex) {
 			display := ui.FormatStatus(f, s.Worktree)
-			files = append(files, display)
-			fileMap[display] = f
+			files = append(files, f)
+			fileMap[f] = display
 		}
 	}
 
@@ -117,7 +117,7 @@ func main() {
 	}
 
 	// selecionar arquivos
-	selected, err := ui.AskMultiSelect("Select files to stage:", files, *lines)
+	selected, err := ui.AskMultiSelectColored("Select files to stage:", files, fileMap)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return
