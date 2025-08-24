@@ -56,7 +56,6 @@ func main() {
 	includer := flag.String("includer", "", "regex pattern to include files (comma separated)")
 	exclude := flag.String("exclude", "", "Filter files to exclude (comma separated)")
 	excluder := flag.String("excluder", "", "regex pattern to exclude files (comma separated)")
-	lines := flag.Int("lines", 10, "Number of items do display")
 	flag.Parse()
 
 	checkLatestRelease()
