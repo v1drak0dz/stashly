@@ -67,13 +67,14 @@ func RunView(files map[string]*gitx.FileStatus, commits []string, branches map[s
 		SetScrollable(true).
 		SetWrap(false)
 
-	// Display o arquivo inicial
-	out, _ := exec.Command("git", "diff", "--color=always", _files[0]).CombinedOutput()
-	content := string(out)
-	if content == "" {
-		content = "(sem alterações para mostrar)"
+	if len(_files) > 0 {
+		out, _ := exec.Command("git", "diff", "--color=always", _files[0]).CombinedOutput()
+		content := string(out)
+		if content == "" {
+			content = "(sem alterações para mostrar)"
+		}
+		diffText.SetText(tview.TranslateANSI(content)).SetBorder(true).SetTitle("Diff").SetTitleAlign(tview.AlignLeft)
 	}
-	diffText.SetText(tview.TranslateANSI(content)).SetBorder(true).SetTitle("Diff").SetTitleAlign(tview.AlignLeft)
 
 	// Atualiza diff ao mudar arquivo selecionado
 	filesList.SetChangedFunc(func(index int, mainText string, secondaryText string, shortcut rune) {
